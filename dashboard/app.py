@@ -1,64 +1,74 @@
 """
 dashboard/app.py
 ----------------
-Main Streamlit interface for the CodeVerse Custom C++ Deep Learning Engine.
+Main Streamlit interface for the soft-cuda Custom C++ Deep Learning Engine.
 
 Provides two operational modes:
   1. Live Brain   -- Real-time training loop visualizer with epoch-level metrics.
-  2. Hardware Inference Engine -- Single-shot FPS prediction with hardware consulting.
-
-Launch:
-    streamlit run dashboard/app.py
+  2. Hardware Inference -- Target hardware FPS prediction using trained weights.
 """
 
-import os
-import sys
-import time
-
-import pandas as pd
 import streamlit as st
-
+import pandas as pd
+import time
 import random
+import math
 
 # ============================================================================
-# MOCKED BACKEND (Since C++ binaries are missing)
+# MOCK BACKEND GENERATORS (Replaces ctypes calls for UI Testing)
 # ============================================================================
 
-def run_training_loop():
-    """Mocks the training loop generator."""
-    loss = 0.5
-    for epoch in range(1, 501):
-        time.sleep(0.01) # fake delay
-        loss = loss * 0.99 # fake loss reduction
-        phase = 0 if epoch < 100 else (1 if epoch < 400 else 2)
+def run_training_loop(epochs=500, base_loss=1.2):
+    """Generates mock training epoch data to simulate the C++ engine."""
+    current_loss = base_loss
+    for epoch in range(1, epochs + 1):
+        # Simulate C++ processing time (faster over time as weights settle)
+        time_ms = random.uniform(2.5, 5.0) - (epoch / epochs) * 1.5
+        
+        # Simulate loss curve with noise and asymptotic convergence
+        noise = random.uniform(-0.02, 0.02) * (1 - epoch/epochs)
+        current_loss = current_loss * 0.98 + noise
+        if current_loss < 0.01:
+            current_loss = 0.01 + random.uniform(0, 0.005)
+            
+        # Determine learning phase
+        if epoch < epochs * 0.3:
+            phase = 0
+        elif epoch < epochs * 0.8:
+            phase = 1
+        else:
+            phase = 2
+            
         yield {
             "epoch": epoch,
-            "total_epochs": 500,
-            "loss": loss,
-            "time_ms": random.uniform(1.0, 3.0),
+            "loss": current_loss,
+            "time_ms": max(0.5, time_ms),
             "learning_phase": phase,
-            "num_samples": 8500,
-            "num_features": 9,
+            "total_epochs": epochs,
+            "num_samples": 8500
         }
+        time.sleep(0.01) # UI refresh rate
 
-def load_game_requirements(path):
-    return {
-        "cyberpunk 2077": {"display_name": "Cyberpunk 2077", "min_cpu": 3.2, "rec_cpu": 3.6, "min_ram": 8, "rec_ram": 16, "min_vram": 6, "rec_vram": 8},
-        "fortnite": {"display_name": "Fortnite", "min_cpu": 2.8, "rec_cpu": 3.5, "min_ram": 8, "rec_ram": 16, "min_vram": 2, "rec_vram": 4},
-        "gta v": {"display_name": "GTA V", "min_cpu": 2.4, "rec_cpu": 3.2, "min_ram": 4, "rec_ram": 8, "min_vram": 1, "rec_vram": 2},
-        "valorant": {"display_name": "Valorant", "min_cpu": 2.0, "rec_cpu": 3.0, "min_ram": 4, "rec_ram": 8, "min_vram": 1, "rec_vram": 2},
-        "apex legends": {"display_name": "Apex Legends", "min_cpu": 2.6, "rec_cpu": 3.4, "min_ram": 6, "rec_ram": 8, "min_vram": 2, "rec_vram": 6},
-    }
+def load_game_requirements(db_path):
+    """Mock game requirements database."""
+    return [
+        {"id": "cs2", "display_name": "Counter-Strike 2", "min_cpu": 2.8, "min_ram": 8, "min_vram": 2, "rec_cpu": 3.6, "rec_ram": 16, "rec_vram": 8},
+        {"id": "cyberpunk", "display_name": "Cyberpunk 2077", "min_cpu": 3.2, "min_ram": 12, "min_vram": 6, "rec_cpu": 4.0, "rec_ram": 16, "rec_vram": 12},
+        {"id": "valorant", "display_name": "Valorant", "min_cpu": 2.5, "min_ram": 4, "min_vram": 1, "rec_cpu": 3.2, "rec_ram": 8, "rec_vram": 4},
+        {"id": "gta5", "display_name": "Grand Theft Auto V", "min_cpu": 2.4, "min_ram": 4, "min_vram": 1, "rec_cpu": 3.2, "rec_ram": 8, "rec_vram": 4},
+        {"id": "fortnite", "display_name": "Fortnite", "min_cpu": 2.8, "min_ram": 8, "min_vram": 2, "rec_cpu": 3.5, "rec_ram": 16, "rec_vram": 8},
+    ]
 
-def search_games(query, db, max_results=10):
-    query_lower = query.lower().strip()
-    return [info for key, info in db.items() if query_lower in key][:max_results]
+def search_games(query, db, max_results=5):
+    """Filter mock database by query string."""
+    q = query.lower()
+    results = [g for g in db if q in g["display_name"].lower()]
+    return results[:max_results]
 
 def get_prediction_report(cpu_ghz, ram_gb, vram_gb, game_name):
-    """Mocks the inference engine report."""
-    time.sleep(0.5) # fake computation time
+    """Mocks the C++ inference forward pass."""
     db = load_game_requirements(None)
-    game = next(g for g in db.values() if g["display_name"] == game_name)
+    game = next((g for g in db if g["display_name"] == game_name), db[0])
     
     # Fake simple FPS logic
     base_fps = 90
@@ -94,83 +104,106 @@ _predict_game_db = load_game_requirements(None)
 # ============================================================================
 
 st.set_page_config(
-    page_title="CodeVerse Neural Engine",
+    page_title="soft-cuda Neural Engine",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ---------------------------------------------------------------------------
-# Global CSS -- Galaxy Theme + Banner Header
+# Global CSS -- Catppuccin Starry Galaxy Theme (High Contrast)
 # ---------------------------------------------------------------------------
 st.markdown(
     """
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
-        /* ---- Global App Styling (Galaxy Theme) ---- */
+        /* ---- Global App Styling (Starry Background) ---- */
         .stApp {
-            background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%) !important;
+            background-color: #0d0f18 !important;
+            background-image: 
+                radial-gradient(1px 1px at 25px 5px, white, rgba(255,255,255,0)),
+                radial-gradient(1px 1px at 50px 25px, white, rgba(255,255,255,0)),
+                radial-gradient(1px 1px at 125px 20px, white, rgba(255,255,255,0)),
+                radial-gradient(1.5px 1.5px at 50px 75px, white, rgba(255,255,255,0)),
+                radial-gradient(2px 2px at 15px 125px, white, rgba(255,255,255,0)),
+                radial-gradient(2.5px 2.5px at 110px 140px, white, rgba(255,255,255,0)),
+                radial-gradient(1.5px 1.5px at 180px 10px, white, rgba(255,255,255,0)),
+                radial-gradient(1px 1px at 220px 60px, white, rgba(255,255,255,0)),
+                radial-gradient(2px 2px at 280px 120px, white, rgba(255,255,255,0)),
+                radial-gradient(1px 1px at 320px 40px, white, rgba(255,255,255,0)),
+                radial-gradient(1.5px 1.5px at 380px 90px, white, rgba(255,255,255,0)),
+                radial-gradient(2px 2px at 420px 10px, white, rgba(255,255,255,0)),
+                radial-gradient(1px 1px at 480px 140px, white, rgba(255,255,255,0)),
+                radial-gradient(1.5px 1.5px at 550px 50px, white, rgba(255,255,255,0)),
+                radial-gradient(1px 1px at 600px 100px, white, rgba(255,255,255,0)),
+                radial-gradient(ellipse at bottom, rgba(137,180,250,0.1) 0%, rgba(17,17,27,0) 100%) !important;
+            background-size: 650px 650px, 650px 650px, 650px 650px, 650px 650px, 650px 650px, 650px 650px, 650px 650px, 650px 650px, 650px 650px, 650px 650px, 650px 650px, 650px 650px, 650px 650px, 650px 650px, 650px 650px, 100% 100% !important;
             background-attachment: fixed !important;
             font-family: 'Inter', sans-serif;
-            color: #e2e8f0;
+            color: #ffffff;
         }
 
         /* Override standard markdown text */
         p, span, div {
             font-family: 'Inter', sans-serif;
+            color: #ffffff; /* Max contrast */
         }
         
         code, pre, .stCodeBlock {
-            font-family: 'Space Grotesk', monospace !important;
+            font-family: 'JetBrains Mono', monospace !important;
+            background: rgba(17, 17, 27, 0.9) !important;
+            border: 1px solid rgba(137, 180, 250, 0.4);
+            border-radius: 0px !important;
+            color: #cdd6f4 !important;
         }
 
         /* ---- Sidebar Styling ---- */
         [data-testid="stSidebar"] {
-            background: rgba(15, 12, 41, 0.6) !important;
+            background: rgba(17, 17, 27, 0.8) !important; /* Darker for contrast */
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
-            border-right: 1px solid rgba(176, 38, 255, 0.2);
+            border-right: 1px solid rgba(203, 166, 247, 0.3);
         }
         [data-testid="stSidebar"] .stRadio > div {
-            background: rgba(0, 0, 0, 0.2);
+            background: rgba(0, 0, 0, 0.4);
             padding: 1.5rem 1rem;
-            border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.05);
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+            border-radius: 0px;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.8);
         }
         [data-testid="stSidebar"] .stRadio label {
-            color: #e2e8f0 !important;
+            color: #ffffff !important;
             font-family: 'Space Grotesk', sans-serif !important;
             font-size: 1.05rem !important;
         }
 
         /* ---- Page header (Banner Style) ---- */
         .main-header-container {
-            background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 58, 138, 0.8) 100%);
-            border-radius: 20px;
+            background: linear-gradient(135deg, rgba(30, 30, 46, 0.95) 0%, rgba(17, 17, 27, 0.9) 100%);
+            border-radius: 0px;
             padding: 3rem 2rem;
             text-align: center;
             margin-bottom: 2.5rem;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.4), inset 0 0 20px rgba(0, 242, 254, 0.1);
-            border: 1px solid rgba(0, 242, 254, 0.2);
-            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6), inset 0 0 20px rgba(137, 180, 250, 0.2);
+            border: 1px solid rgba(137, 180, 250, 0.4);
+            backdrop-filter: blur(16px);
         }
         .main-header {
             font-family: 'Space Grotesk', sans-serif;
             font-size: 2.8rem;
             font-weight: 700;
-            background: linear-gradient(to right, #00f2fe 0%, #4facfe 100%);
+            background: linear-gradient(to right, #cba6f7 0%, #89b4fa 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 0.5rem;
             letter-spacing: -0.5px;
-            text-shadow: 0px 0px 20px rgba(0, 242, 254, 0.3);
+            text-shadow: 0px 0px 25px rgba(203, 166, 247, 0.5);
         }
         .sub-header {
             font-family: 'Inter', sans-serif;
             font-size: 1.1rem;
-            font-weight: 300;
-            color: #e2e8f0;
+            font-weight: 400;
+            color: #cdd6f4;
             margin-top: 0.5rem;
             margin-bottom: 0;
             line-height: 1.6;
@@ -182,17 +215,17 @@ st.markdown(
             font-size: 1.3rem !important;
             font-weight: 600 !important;
             color: #ffffff !important;
-            border-bottom: 1px solid rgba(0, 242, 254, 0.2);
+            border-bottom: 1px solid rgba(137, 180, 250, 0.4);
             padding-bottom: 0.5rem;
             margin-top: 1.5rem !important;
             letter-spacing: 1px !important;
-            text-shadow: 0px 0px 10px rgba(0, 242, 254, 0.3);
+            text-shadow: 0px 0px 10px rgba(137, 180, 250, 0.5);
         }
         h5, .stMarkdown h5 {
             font-family: 'Space Grotesk', sans-serif !important;
             font-size: 0.9rem !important;
             font-weight: 600 !important;
-            color: #00f2fe !important;
+            color: #89b4fa !important;
             letter-spacing: 1.5px !important;
             text-transform: uppercase !important;
             margin-bottom: 0.8rem !important;
@@ -204,13 +237,13 @@ st.markdown(
             font-size: 2.2rem !important;
             font-weight: 700 !important;
             color: #ffffff !important;
-            text-shadow: 0 0 15px rgba(0, 242, 254, 0.5);
+            text-shadow: 0 0 15px rgba(137, 180, 250, 0.8);
         }
         [data-testid="stMetricLabel"] {
             font-family: 'Space Grotesk', sans-serif !important;
             font-size: 0.85rem !important;
             font-weight: 500 !important;
-            color: #a7b2c9 !important;
+            color: #bac2de !important;
             letter-spacing: 1px;
             text-transform: uppercase;
         }
@@ -221,34 +254,34 @@ st.markdown(
 
         /* ---- Input label visibility ---- */
         .stSlider label, .stTextInput label, .stSelectbox label {
-            color: #cbd5e1 !important;
+            color: #ffffff !important;
             font-family: 'Space Grotesk', sans-serif !important;
             font-size: 1rem !important;
             font-weight: 500 !important;
             letter-spacing: 0.5px;
         }
 
-        /* ---- Premium Cards (Galaxy Glassmorphism) ---- */
+        /* ---- Premium Cards (Galaxy Glassmorphism + High Contrast) ---- */
         .cyber-card {
-            background: rgba(15, 12, 41, 0.6);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(176, 38, 255, 0.2);
-            border-radius: 16px;
+            background: rgba(17, 17, 27, 0.85); /* Darker base for contrast */
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(203, 166, 247, 0.3);
+            border-radius: 0px;
             padding: 1.5rem;
             font-family: 'Inter', sans-serif;
             font-size: 0.9rem;
             line-height: 2;
-            color: #a7b2c9;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(176, 38, 255, 0.05);
+            color: #ffffff;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(203, 166, 247, 0.1);
             margin-bottom: 1rem;
             transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         .cyber-card:hover {
             transform: translateY(-6px) scale(1.02);
-            box-shadow: 0 15px 45px 0 rgba(0, 0, 0, 0.6), inset 0 0 30px rgba(0, 242, 254, 0.1);
-            border-color: rgba(0, 242, 254, 0.4);
-            background: rgba(20, 15, 55, 0.8);
+            box-shadow: 0 15px 45px 0 rgba(0, 0, 0, 0.8), inset 0 0 30px rgba(137, 180, 250, 0.2);
+            border-color: rgba(137, 180, 250, 0.6);
+            background: rgba(30, 30, 46, 0.95);
         }
         .cyber-card .card-title {
             font-family: 'Space Grotesk', sans-serif;
@@ -256,34 +289,34 @@ st.markdown(
             font-weight: 600;
             letter-spacing: 1.5px;
             text-transform: uppercase;
-            color: #b026ff;
+            color: #cba6f7;
             margin-bottom: 0.8rem;
             padding-bottom: 0.5rem;
-            border-bottom: 1px solid rgba(176, 38, 255, 0.2);
-            text-shadow: 0 0 8px rgba(176, 38, 255, 0.4);
+            border-bottom: 1px solid rgba(203, 166, 247, 0.3);
+            text-shadow: 0 0 10px rgba(203, 166, 247, 0.5);
         }
-        .cyber-card .cl { color: #7a8ba8; font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem;}
-        .cyber-card .cv { color: #e2e8f0; font-weight: 500; font-family: 'Inter', sans-serif;}
+        .cyber-card .cl { color: #bac2de; font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem;}
+        .cyber-card .cv { color: #ffffff; font-weight: 500; font-family: 'Inter', sans-serif;}
         .cyber-card .cv-accent { 
-            background: linear-gradient(to right, #00f2fe, #4facfe);
+            background: linear-gradient(to right, #89dceb, #a6e3a1);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             font-weight: 700;
             font-family: 'Space Grotesk', sans-serif;
-            filter: drop-shadow(0 0 5px rgba(0,242,254,0.3));
+            filter: drop-shadow(0 0 5px rgba(166,227,161,0.5));
         }
 
-        /* ---- Hero FPS (Nebula Orb) ---- */
+        /* ---- Hero FPS (Nebula Orb + Sharp Frame) ---- */
         .hero-fps {
             text-align: center;
             padding: 4rem 1rem;
-            background: radial-gradient(circle, rgba(176,38,255,0.15) 0%, rgba(0,242,254,0.05) 50%, rgba(9,10,15,0) 100%);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            border: 1px solid rgba(176, 38, 255, 0.3);
-            border-radius: 30px;
+            background: radial-gradient(circle, rgba(203,166,247,0.2) 0%, rgba(137,180,250,0.05) 50%, rgba(17,17,27,0.8) 100%);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(203, 166, 247, 0.4);
+            border-radius: 0px;
             margin-bottom: 1.5rem;
-            box-shadow: 0 0 50px rgba(176,38,255,0.2), inset 0 0 30px rgba(0,242,254,0.1);
+            box-shadow: 0 0 50px rgba(203,166,247,0.3), inset 0 0 30px rgba(137,180,250,0.15);
             transition: all 0.5s ease;
             position: relative;
             overflow: hidden;
@@ -292,7 +325,7 @@ st.markdown(
             content: '';
             position: absolute;
             top: -50%; left: -50%; width: 200%; height: 200%;
-            background: conic-gradient(from 0deg, transparent, rgba(176,38,255,0.2), transparent);
+            background: conic-gradient(from 0deg, transparent, rgba(203,166,247,0.25), transparent);
             animation: rotate 10s linear infinite;
             z-index: -1;
         }
@@ -300,25 +333,25 @@ st.markdown(
             100% { transform: rotate(360deg); }
         }
         .hero-fps:hover {
-            box-shadow: 0 0 80px rgba(0,242,254,0.3), inset 0 0 50px rgba(176,38,255,0.2);
-            border-color: rgba(0, 242, 254, 0.6);
+            box-shadow: 0 0 80px rgba(137,180,250,0.4), inset 0 0 50px rgba(203,166,247,0.3);
+            border-color: rgba(137, 180, 250, 0.7);
             transform: scale(1.02);
         }
         .hero-fps .fps-number {
             font-family: 'Space Grotesk', sans-serif;
             font-size: 6.5rem;
             font-weight: 800;
-            background: linear-gradient(to bottom right, #ffffff, #00f2fe, #b026ff);
+            background: linear-gradient(to bottom right, #ffffff, #89dceb, #a6e3a1);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             line-height: 1;
-            filter: drop-shadow(0 0 15px rgba(0,242,254,0.6));
+            filter: drop-shadow(0 0 15px rgba(137,180,250,0.6));
         }
         .hero-fps .fps-unit {
             font-family: 'Space Grotesk', sans-serif;
             font-size: 1rem;
             font-weight: 600;
-            color: #a7b2c9;
+            color: #ffffff;
             letter-spacing: 4px;
             text-transform: uppercase;
             margin-top: 1.5rem;
@@ -328,7 +361,7 @@ st.markdown(
         .phase-badge {
             display: inline-block;
             padding: 0.6rem 1.4rem;
-            border-radius: 30px;
+            border-radius: 0px;
             font-family: 'Space Grotesk', sans-serif;
             font-size: 0.9rem;
             font-weight: 600;
@@ -338,121 +371,131 @@ st.markdown(
             letter-spacing: 1px;
         }
         .phase-0 {
-            background: rgba(255, 0, 128, 0.15);
-            color: #ff0080;
-            border: 1px solid rgba(255, 0, 128, 0.4);
-            box-shadow: 0 0 20px rgba(255, 0, 128, 0.2);
+            background: rgba(249, 226, 175, 0.2);
+            color: #f9e2af;
+            border: 1px solid rgba(249, 226, 175, 0.5);
+            box-shadow: 0 0 20px rgba(249, 226, 175, 0.3);
         }
         .phase-1 {
-            background: rgba(176, 38, 255, 0.15);
-            color: #b026ff;
-            border: 1px solid rgba(176, 38, 255, 0.4);
-            box-shadow: 0 0 20px rgba(176, 38, 255, 0.2);
+            background: rgba(137, 180, 250, 0.2);
+            color: #89b4fa;
+            border: 1px solid rgba(137, 180, 250, 0.5);
+            box-shadow: 0 0 20px rgba(137, 180, 250, 0.3);
         }
         .phase-2 {
-            background: rgba(0, 242, 254, 0.15);
-            color: #00f2fe;
-            border: 1px solid rgba(0, 242, 254, 0.4);
-            box-shadow: 0 0 20px rgba(0, 242, 254, 0.2);
+            background: rgba(166, 227, 161, 0.2);
+            color: #a6e3a1;
+            border: 1px solid rgba(166, 227, 161, 0.5);
+            box-shadow: 0 0 20px rgba(166, 227, 161, 0.3);
         }
 
         /* ---- Verdict boxes ---- */
         .verdict-box {
             padding: 1.4rem 1.8rem;
-            border-radius: 16px;
+            border-radius: 0px;
             font-family: 'Space Grotesk', sans-serif;
             font-size: 1.05rem;
             font-weight: 600;
             margin-bottom: 1.5rem;
-            backdrop-filter: blur(16px);
+            backdrop-filter: blur(20px);
             display: flex;
             align-items: center;
             letter-spacing: 0.5px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
         }
         .verdict-esports {
-            background: linear-gradient(135deg, rgba(0,242,254,0.15), rgba(0,242,254,0.02));
-            color: #00f2fe;
-            border: 1px solid rgba(0,242,254,0.3);
-            border-left: 5px solid #00f2fe;
-            text-shadow: 0 0 10px rgba(0,242,254,0.5);
+            background: linear-gradient(135deg, rgba(166,227,161,0.2), rgba(17,17,27,0.8));
+            color: #a6e3a1;
+            border: 1px solid rgba(166,227,161,0.4);
+            border-left: 5px solid #a6e3a1;
+            text-shadow: 0 0 10px rgba(166,227,161,0.4);
         }
         .verdict-smooth {
-            background: linear-gradient(135deg, rgba(176,38,255,0.15), rgba(176,38,255,0.02));
-            color: #b026ff;
-            border: 1px solid rgba(176,38,255,0.3);
-            border-left: 5px solid #b026ff;
-            text-shadow: 0 0 10px rgba(176,38,255,0.5);
+            background: linear-gradient(135deg, rgba(137,180,250,0.2), rgba(17,17,27,0.8));
+            color: #89b4fa;
+            border: 1px solid rgba(137,180,250,0.4);
+            border-left: 5px solid #89b4fa;
+            text-shadow: 0 0 10px rgba(137,180,250,0.5);
         }
         .verdict-playable {
-            background: linear-gradient(135deg, rgba(255,165,0,0.15), rgba(255,165,0,0.02));
-            color: #ffa500;
-            border: 1px solid rgba(255,165,0,0.3);
-            border-left: 5px solid #ffa500;
+            background: linear-gradient(135deg, rgba(249,226,175,0.2), rgba(17,17,27,0.8));
+            color: #f9e2af;
+            border: 1px solid rgba(249,226,175,0.4);
+            border-left: 5px solid #f9e2af;
         }
         .verdict-unplayable {
-            background: linear-gradient(135deg, rgba(255,0,128,0.15), rgba(255,0,128,0.02));
-            color: #ff0080;
-            border: 1px solid rgba(255,0,128,0.3);
-            border-left: 5px solid #ff0080;
+            background: linear-gradient(135deg, rgba(243,139,168,0.2), rgba(17,17,27,0.8));
+            color: #f38ba8;
+            border: 1px solid rgba(243,139,168,0.4);
+            border-left: 5px solid #f38ba8;
         }
 
         /* ---- Bottleneck cards ---- */
         .consul-optimal {
-            background: rgba(0, 242, 254, 0.1);
-            color: #00f2fe;
-            border: 1px solid rgba(0, 242, 254, 0.3);
+            background: rgba(166, 227, 161, 0.15);
+            color: #a6e3a1;
+            border: 1px solid rgba(166, 227, 161, 0.4);
             padding: 1.2rem 1.6rem;
-            border-radius: 12px;
+            border-radius: 0px;
             font-family: 'Space Grotesk', sans-serif;
             font-size: 0.95rem;
             margin-bottom: 1rem;
             display: flex;
             align-items: center;
             gap: 12px;
-            box-shadow: 0 0 20px rgba(0, 242, 254, 0.1);
+            box-shadow: 0 0 20px rgba(166, 227, 161, 0.2);
+            backdrop-filter: blur(10px);
         }
         .consul-warning {
-            background: rgba(255, 0, 128, 0.1);
-            color: #ff0080;
-            border: 1px solid rgba(255, 0, 128, 0.3);
+            background: rgba(243, 139, 168, 0.15);
+            color: #f38ba8;
+            border: 1px solid rgba(243, 139, 168, 0.4);
             padding: 1.2rem 1.6rem;
-            border-radius: 12px;
+            border-radius: 0px;
             font-family: 'Space Grotesk', sans-serif;
             font-size: 0.95rem;
             margin-bottom: 1rem;
             display: flex;
             align-items: center;
             gap: 12px;
-            box-shadow: 0 0 20px rgba(255, 0, 128, 0.1);
+            box-shadow: 0 0 20px rgba(243, 139, 168, 0.2);
+            backdrop-filter: blur(10px);
         }
 
         /* ---- Buttons ---- */
         .stButton > button {
-            background: linear-gradient(45deg, #b026ff 0%, #00f2fe 100%);
-            color: white;
+            background: linear-gradient(45deg, #9a75c4 0%, #5a85c9 100%);
+            color: #ffffff;
             font-family: 'Space Grotesk', sans-serif;
             font-size: 1.05rem;
-            font-weight: 700;
-            letter-spacing: 1px;
+            font-weight: 800;
+            letter-spacing: 1.5px;
             border: none;
             padding: 0.6rem 2.5rem;
-            border-radius: 30px;
+            border-radius: 0px;
             transition: all 0.3s ease;
-            box-shadow: 0 8px 20px rgba(176, 38, 255, 0.4);
+            box-shadow: 0 8px 20px rgba(154, 117, 196, 0.4);
             text-transform: uppercase;
         }
         .stButton > button:hover {
-            transform: translateY(-3px) scale(1.05);
-            box-shadow: 0 12px 30px rgba(0, 242, 254, 0.6);
-            background: linear-gradient(45deg, #00f2fe 0%, #b026ff 100%);
-            color: white;
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 12px 30px rgba(90, 133, 201, 0.5);
+            background: linear-gradient(45deg, #5a85c9 0%, #9a75c4 100%);
+            color: #ffffff;
         }
 
         /* ---- Dividers ---- */
         hr {
-            border-color: rgba(176, 38, 255, 0.2) !important;
+            border-color: rgba(203, 166, 247, 0.3) !important;
             margin: 2.5rem 0 !important;
+        }
+        
+        /* Dropdowns/Inputs */
+        .stTextInput > div > div > input, .stSelectbox > div > div {
+            border-radius: 0px !important;
+            background: rgba(17, 17, 27, 0.8) !important;
+            color: #ffffff !important;
+            border: 1px solid rgba(137, 180, 250, 0.4) !important;
         }
     </style>
     """,
@@ -466,9 +509,9 @@ st.markdown(
 with st.sidebar:
     st.markdown(
         """
-        <div style='text-align: center; padding: 1rem 0;'>
-            <h2 style='font-family: Space Grotesk; color: #00f2fe; margin-bottom: 0; text-shadow: 0 0 10px rgba(0,242,254,0.3); letter-spacing: 1px;'>CodeVerse</h2>
-            <p style='color: #a7b2c9; font-size: 0.9rem; font-family: Inter;'>Neural Engine</p>
+        <div style='text-align: center; padding: 1.5rem 0 1rem 0;'>
+            <h2 style='font-family: Space Grotesk; color: #ffffff; font-size: 2.6rem; font-weight: 800; margin-bottom: 0; letter-spacing: 2px; text-shadow: 0 0 20px rgba(137, 180, 250, 0.8), 0 0 10px rgba(203, 166, 247, 0.6);'>SOFT-CUDA</h2>
+            <p style='color: #bac2de; font-size: 1rem; font-family: Inter; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 0.2rem;'>Neural Engine</p>
         </div>
         """, 
         unsafe_allow_html=True
@@ -524,10 +567,22 @@ if app_mode == "Live Brain":
         ph_epoch = st.empty()
         ph_loss  = st.empty()
         ph_time  = st.empty()
+        ph_samples = st.empty()
 
         st.markdown("---")
-        st.markdown("##### System Diagnostics")
+        st.markdown("##### Learning Status")
+        ph_phase = st.empty()
 
+    with col_graph:
+        st.markdown("##### Loss Curve (Real-Time)")
+        ph_chart = st.empty()
+
+    st.markdown("---")
+    st.markdown("##### System Diagnostics")
+    
+    sys_col1, sys_col2, sys_col3 = st.columns(3, gap="large")
+
+    with sys_col1:
         # [SYS] Model Topology
         st.markdown(
             '<div class="cyber-card">'
@@ -547,6 +602,7 @@ if app_mode == "Live Brain":
             unsafe_allow_html=True,
         )
 
+    with sys_col2:
         # [NET] Execution & Hyperparameters
         st.markdown(
             '<div class="cyber-card">'
@@ -563,6 +619,7 @@ if app_mode == "Live Brain":
             unsafe_allow_html=True,
         )
 
+    with sys_col3:
         # [OPS] Engine Memory & Graph
         st.markdown(
             '<div class="cyber-card">'
@@ -577,15 +634,6 @@ if app_mode == "Live Brain":
             '</div>',
             unsafe_allow_html=True,
         )
-        ph_samples = st.empty()
-
-        st.markdown("---")
-        st.markdown("##### Learning Status")
-        ph_phase = st.empty()
-
-    with col_graph:
-        st.markdown("##### Loss Curve (Real-Time)")
-        ph_chart = st.empty()
 
     # -- Training loop execution ---------------------------------------------
     if btn_train:
