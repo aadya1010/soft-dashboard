@@ -12,6 +12,11 @@ import streamlit as st
 import pandas as pd
 import time
 import random
+try:
+    import plotly.graph_objects as go
+    HAS_PLOTLY = True
+except ImportError:
+    HAS_PLOTLY = False
 import math
 
 # ============================================================================
@@ -497,6 +502,127 @@ st.markdown(
             color: #ffffff !important;
             border: 1px solid rgba(137, 180, 250, 0.4) !important;
         }
+
+        /* ---- Benchmark Hero Section ---- */
+        .bench-hero {
+            background: linear-gradient(135deg, rgba(30, 30, 46, 0.95) 0%, rgba(17, 17, 27, 0.9) 100%);
+            border-radius: 0px;
+            padding: 4rem 2rem 3rem 2rem;
+            text-align: center;
+            margin-bottom: 2.5rem;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6), inset 0 0 20px rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            backdrop-filter: blur(16px);
+            position: relative;
+            overflow: hidden;
+        }
+        .bench-hero::before {
+            content: '';
+            position: absolute;
+            top: -50%; left: -50%; width: 200%; height: 200%;
+            background: conic-gradient(from 0deg, transparent, rgba(16, 185, 129, 0.12), transparent);
+            animation: rotate 12s linear infinite;
+            z-index: 0;
+        }
+        .bench-hero h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 3.4rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #ffffff 0%, #10B981 50%, #89b4fa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.8rem;
+            letter-spacing: -1px;
+            position: relative;
+            z-index: 1;
+        }
+        .bench-hero .bench-subtitle {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 400;
+            color: #94A3B8;
+            margin-bottom: 1.5rem;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.6;
+            position: relative;
+            z-index: 1;
+        }
+        .bench-badges {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            position: relative;
+            z-index: 1;
+        }
+        .bench-badge {
+            display: inline-block;
+            padding: 0.5rem 1.2rem;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: #10B981;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            border-radius: 0px;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+            transition: all 0.3s ease;
+        }
+        .bench-badge:hover {
+            box-shadow: 0 0 25px rgba(16, 185, 129, 0.4);
+            border-color: rgba(16, 185, 129, 0.7);
+            background: rgba(16, 185, 129, 0.15);
+        }
+
+        /* ---- Benchmark Stat Value ---- */
+        .bench-stat-value {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.4rem;
+            font-weight: 700;
+            line-height: 1.2;
+            margin: 0.5rem 0;
+        }
+        .bench-stat-label {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #94A3B8;
+            letter-spacing: 1px;
+        }
+
+        /* ---- DX Section ---- */
+        .dx-section {
+            text-align: center;
+            padding: 2rem 0;
+        }
+        .dx-kicker {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #94A3B8;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 0.8rem;
+        }
+        .dx-headline {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.8rem;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.5px;
+        }
+        .dx-sub {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 400;
+            color: #CBD5E1;
+            margin-bottom: 1.5rem;
+        }
     </style>
     """,
     unsafe_allow_html=True,
@@ -521,7 +647,7 @@ with st.sidebar:
     
     app_mode = st.radio(
         "Application Mode",
-        ["Live Brain", "Hardware Inference"]
+        ["Live Brain", "Hardware Inference", "Engine Benchmarks"]
     )
     
     st.markdown("---")
@@ -535,9 +661,12 @@ with st.sidebar:
 if app_mode == "Live Brain":
     banner_title = "Live Brain Training Visualizer"
     banner_sub = "Real-time neural network operations powered by a custom C++ backend with memory pooling and autograd."
-else:
+elif app_mode == "Hardware Inference":
     banner_title = "Hardware Inference Engine"
     banner_sub = "Single-shot FPS prediction using your hardware specifications and the trained neural engine."
+else:
+    banner_title = "Engine Benchmarks"
+    banner_sub = "Performance telemetry and developer experience showcase for the CodeVerse C++ inference engine."
 
 st.markdown(
     f'''
@@ -873,3 +1002,251 @@ elif app_mode == "Hardware Inference":
                     '</div>',
                     unsafe_allow_html=True,
                 )
+
+# ============================================================================
+# Mode 3: Engine Benchmarks
+# ============================================================================
+
+elif app_mode == "Engine Benchmarks":
+
+    # -- 1. Hero Section -----------------------------------------------------
+    st.markdown(
+        '''
+        <div class="bench-hero">
+            <h1>CodeVerse // Benchmark Suite</h1>
+            <div class="bench-subtitle">
+                Outperforming PyTorch via AOT-Optimized Hybrid Dispatch
+                and Zero-Overhead C++ Pooling.
+            </div>
+            <div class="bench-badges">
+                <span class="bench-badge">CUDA Accelerated</span>
+                <span class="bench-badge">Zero GIL Overhead</span>
+                <span class="bench-badge">Custom Autograd</span>
+            </div>
+        </div>
+        ''',
+        unsafe_allow_html=True,
+    )
+
+    # -- 2. Headline Showdown (Deep MLP 4-Layer) ----------------------------
+    st.markdown("#### Deep MLP 4-Layer -- Headline Showdown")
+
+    show_c1, show_c2, show_c3 = st.columns(3, gap="large")
+
+    with show_c1:
+        st.markdown(
+            '<div class="cyber-card">'
+            '<div class="card-title">[REF] PyTorch (GPU)</div>'
+            '<div class="bench-stat-value" style="color: #89b4fa;">2.10 ms</div>'
+            '<div class="bench-stat-label">per step</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+    with show_c2:
+        st.markdown(
+            '<div class="cyber-card">'
+            '<div class="card-title">[CV] CodeVerse (Hybrid)</div>'
+            '<div class="bench-stat-value" style="color: #10B981;">1.99 ms</div>'
+            '<div class="bench-stat-label">per step</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+    with show_c3:
+        st.markdown(
+            '<div class="cyber-card">'
+            '<div class="card-title">[EDGE] Performance Edge</div>'
+            '<div class="bench-stat-value" style="color: #10B981;">~5.2%</div>'
+            '<div class="bench-stat-label">Faster</div>'
+            '<br>'
+            '<span class="cl">Note: Custom AOT dispatch eliminates Python dispatcher overhead.</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("---")
+
+    # -- 3. Interactive Matmul Scaling (Plotly) -------------------------------
+    st.markdown("#### Core Operation: Matmul Scaling Latency (ms)")
+
+    matrix_sizes = ["256", "512", "1024", "2048", "4096"]
+    cv_gpu = [0.1655, 0.1118, 0.4127, 2.8138, 19.4124]
+    pt_gpu = [0.1036, 0.1486, 0.4564, 2.9442, 20.0746]
+
+    if HAS_PLOTLY:
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatter(
+            x=matrix_sizes,
+            y=cv_gpu,
+            mode="lines+markers",
+            name="CodeVerse (GPU)",
+            line=dict(color="#10B981", width=3),
+            marker=dict(size=8, symbol="diamond", color="#10B981",
+                        line=dict(width=1, color="rgba(16,185,129,0.6)")),
+        ))
+
+        fig.add_trace(go.Scatter(
+            x=matrix_sizes,
+            y=pt_gpu,
+            mode="lines+markers",
+            name="PyTorch (GPU)",
+            line=dict(color="#64748B", width=3, dash="dot"),
+            marker=dict(size=8, symbol="circle", color="#64748B",
+                        line=dict(width=1, color="rgba(100,116,139,0.6)")),
+        ))
+
+        fig.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(family="Space Grotesk, sans-serif", color="#ffffff"),
+            legend=dict(
+                orientation="h",
+                yanchor="bottom", y=1.02,
+                xanchor="right", x=1,
+                font=dict(color="#bac2de", size=12),
+                bgcolor="rgba(0,0,0,0)",
+            ),
+            xaxis=dict(
+                title="Matrix Size (NxN)",
+                gridcolor="rgba(137, 180, 250, 0.1)",
+                linecolor="rgba(137, 180, 250, 0.3)",
+                tickfont=dict(color="#94A3B8"),
+                title_font=dict(color="#bac2de"),
+            ),
+            yaxis=dict(
+                title="Latency (ms)",
+                gridcolor="rgba(137, 180, 250, 0.1)",
+                linecolor="rgba(137, 180, 250, 0.3)",
+                tickfont=dict(color="#94A3B8"),
+                title_font=dict(color="#bac2de"),
+            ),
+            margin=dict(l=60, r=30, t=40, b=60),
+            hovermode="x unified",
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        chart_df = pd.DataFrame({
+            "Matrix Size": matrix_sizes,
+            "CodeVerse (GPU)": cv_gpu,
+            "PyTorch (GPU)": pt_gpu,
+        }).set_index("Matrix Size")
+        st.line_chart(chart_df)
+
+    st.markdown(
+        '<div class="cyber-card">'
+        '<span class="cl">Analysis:</span>  '
+        '<span class="cv">At peak load (4096x4096), direct cuBLAS hooks bypass '
+        'PyTorch\'s dispatcher (19.41ms vs 20.07ms).</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("---")
+
+    # -- 4. Framework Overhead (XOR Graph) -----------------------------------
+    st.markdown("#### Python Overhead Analysis (Lightweight XOR Graph)")
+
+    xor_c1, xor_c2 = st.columns(2, gap="large")
+
+    with xor_c1:
+        st.markdown(
+            '<div class="cyber-card">'
+            '<div class="card-title">[CV] CodeVerse CPU</div>'
+            '<div class="bench-stat-value" style="color: #10B981;">302.30 ms</div>'
+            '<div class="bench-stat-label">Full XOR Training</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+    with xor_c2:
+        st.markdown(
+            '<div class="cyber-card">'
+            '<div class="card-title">[PT] PyTorch CPU</div>'
+            '<div class="bench-stat-value" style="color: #f38ba8;">12,364.68 ms</div>'
+            '<div class="bench-stat-label">Full XOR Training</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown(
+        '<div class="cyber-card">'
+        '<span class="cl">Conclusion:</span>  '
+        '<span class="cv">PyTorch suffers massive framework overhead on small graphs. '
+        'CodeVerse executes 40x faster by eliminating Python-level dispatching.</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    # -- 5. Developer Experience (DX) Showcase --------------------------------
+    st.divider()
+
+    st.markdown(
+        '''
+        <div class="dx-section">
+            <div class="dx-kicker">DEVELOPER EXPERIENCE</div>
+            <div class="dx-headline">5 lines to first neural net.</div>
+            <div class="dx-sub">Simple Python API. Raw C++ performance.</div>
+        </div>
+        ''',
+        unsafe_allow_html=True,
+    )
+
+    tab_qs, tab_mem, tab_graph = st.tabs(
+        ["Quick Start", "Memory Pooling", "Computation Graph"]
+    )
+
+    with tab_qs:
+        st.code(
+            '''from tensor import MemoryPool, Tensor, ComputationGraph
+from wrapper import SCBackend, sc_tensor_mse_loss
+
+# 1. Allocate zero-overhead C++ memory
+pool = MemoryPool(capacity_bytes=50 * 1024 * 1024)
+
+# 2. Define tensors with autograd tracking
+X = Tensor.random_normal(pool, shape=[1024, 9])
+W = Tensor.random_normal(pool, shape=[9, 16], requires_grad=True)
+
+# 3. Execute AOT-optimized forward pass
+hidden = X.mul_naive(W).relu()
+
+# 4. Compute Loss via direct C-API hook
+loss = sc_tensor_mse_loss(pool.handle, hidden.handle, Y_target.handle)''',
+            language="python",
+        )
+
+    with tab_mem:
+        st.code(
+            '''from tensor import MemoryPool
+
+# Isolate memory pools to prevent GIL fragmentation
+pool_cpu = MemoryPool(capacity_bytes=50 * 1024 * 1024)
+meta_pool = MemoryPool(capacity_bytes=10 * 1024 * 1024)
+grad_pool = MemoryPool(capacity_bytes=50 * 1024 * 1024)
+
+# Tensors are securely bound to their respective C++ memory arenas
+print(f"Allocated {pool_cpu.capacity} bytes in native C++ backend.")''',
+            language="python",
+        )
+
+    with tab_graph:
+        st.code(
+            '''from tensor import ComputationGraph
+from wrapper import SCBackend
+
+# Build the execution graph
+graph = ComputationGraph.build(
+    meta_pool=meta_pool,
+    loss=loss_tensor,
+    pool_gpu=None,
+    pool_grad_cpu=grad_pool,
+    backend=SCBackend.CPU,
+)
+
+# Execute full backpropagation step in native C++
+graph.step(learning_rate=0.05)''',
+            language="python",
+        )

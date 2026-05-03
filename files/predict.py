@@ -54,6 +54,8 @@ def parse_memory_gb(val):
     if not val or val in ("0", "0MB", "0 MB", "0GB", "0 GB"):
         return None
 
+
+#Hello
     m = re.match(r"^([\d.]+)\s*GB$", val)
     if m:
         return float(m.group(1))
