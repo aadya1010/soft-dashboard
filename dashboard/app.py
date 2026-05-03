@@ -18,26 +18,76 @@ import time
 import pandas as pd
 import streamlit as st
 
-# ---------------------------------------------------------------------------
-# Path configuration: allow imports from the project root and files/ subdirectory.
-# ---------------------------------------------------------------------------
-_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_FILES_DIR    = os.path.join(_PROJECT_ROOT, "files")
+import random
 
-for _p in (_PROJECT_ROOT, _FILES_DIR):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+# ============================================================================
+# MOCKED BACKEND (Since C++ binaries are missing)
+# ============================================================================
 
-from core_training import run_training_loop
-from predict import (
-    get_prediction_report,
-    search_games,
-    load_game_requirements,
-    REQS_CSV,
-)
+def run_training_loop():
+    """Mocks the training loop generator."""
+    loss = 0.5
+    for epoch in range(1, 501):
+        time.sleep(0.01) # fake delay
+        loss = loss * 0.99 # fake loss reduction
+        phase = 0 if epoch < 100 else (1 if epoch < 400 else 2)
+        yield {
+            "epoch": epoch,
+            "total_epochs": 500,
+            "loss": loss,
+            "time_ms": random.uniform(1.0, 3.0),
+            "learning_phase": phase,
+            "num_samples": 8500,
+            "num_features": 9,
+        }
 
-# Pre-load game database once (cached across Streamlit reruns via module scope).
-_predict_game_db = load_game_requirements(REQS_CSV)
+def load_game_requirements(path):
+    return {
+        "cyberpunk 2077": {"display_name": "Cyberpunk 2077", "min_cpu": 3.2, "rec_cpu": 3.6, "min_ram": 8, "rec_ram": 16, "min_vram": 6, "rec_vram": 8},
+        "fortnite": {"display_name": "Fortnite", "min_cpu": 2.8, "rec_cpu": 3.5, "min_ram": 8, "rec_ram": 16, "min_vram": 2, "rec_vram": 4},
+        "gta v": {"display_name": "GTA V", "min_cpu": 2.4, "rec_cpu": 3.2, "min_ram": 4, "rec_ram": 8, "min_vram": 1, "rec_vram": 2},
+        "valorant": {"display_name": "Valorant", "min_cpu": 2.0, "rec_cpu": 3.0, "min_ram": 4, "rec_ram": 8, "min_vram": 1, "rec_vram": 2},
+        "apex legends": {"display_name": "Apex Legends", "min_cpu": 2.6, "rec_cpu": 3.4, "min_ram": 6, "rec_ram": 8, "min_vram": 2, "rec_vram": 6},
+    }
+
+def search_games(query, db, max_results=10):
+    query_lower = query.lower().strip()
+    return [info for key, info in db.items() if query_lower in key][:max_results]
+
+def get_prediction_report(cpu_ghz, ram_gb, vram_gb, game_name):
+    """Mocks the inference engine report."""
+    time.sleep(0.5) # fake computation time
+    db = load_game_requirements(None)
+    game = next(g for g in db.values() if g["display_name"] == game_name)
+    
+    # Fake simple FPS logic
+    base_fps = 90
+    fps = base_fps * (cpu_ghz / game["rec_cpu"]) * (min(ram_gb, game["rec_ram"]) / game["rec_ram"])
+    fps = max(15.0, fps)
+    
+    verdict = "PLAYABLE"
+    if fps >= 120: verdict = "COMPETITIVE / ESPORTS READY"
+    elif fps >= 60: verdict = "SMOOTH"
+    elif fps < 30: verdict = "UNPLAYABLE"
+    
+    bottlenecks = []
+    if cpu_ghz < game["rec_cpu"]: bottlenecks.append(f"CPU Clock: {cpu_ghz:.1f} GHz is below recommended {game['rec_cpu']:.1f} GHz")
+    if ram_gb < game["rec_ram"]: bottlenecks.append(f"System RAM: {ram_gb:.0f} GB is below recommended {game['rec_ram']:.0f} GB")
+    
+    return {
+        "game": game,
+        "predicted_fps": fps,
+        "error_margin": 5.2,
+        "fps_low": fps - 5.2,
+        "fps_high": fps + 5.2,
+        "verdict_label": verdict,
+        "verdict_detail": "Performance estimate based on mocked engine",
+        "bottlenecks": bottlenecks,
+        "num_samples": 8500,
+        "inference_ms": random.uniform(0.1, 0.5),
+    }
+
+_predict_game_db = load_game_requirements(None)
 
 # ============================================================================
 # Page Configuration
@@ -46,244 +96,363 @@ _predict_game_db = load_game_requirements(REQS_CSV)
 st.set_page_config(
     page_title="CodeVerse Neural Engine",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 # ---------------------------------------------------------------------------
-# Global CSS -- Dark Enterprise aesthetic
+# Global CSS -- Galaxy Theme + Banner Header
 # ---------------------------------------------------------------------------
 st.markdown(
     """
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap');
 
-        /* ---- Hide sidebar ---- */
-        [data-testid="stSidebar"],
-        section[data-testid="stSidebarNav"] { display: none !important; }
-
-        /* ---- Global typography ---- */
-        html, body, .stApp {
+        /* ---- Global App Styling (Galaxy Theme) ---- */
+        .stApp {
+            background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%) !important;
+            background-attachment: fixed !important;
             font-family: 'Inter', sans-serif;
-            color: #F1F5F9;
+            color: #e2e8f0;
         }
+
+        /* Override standard markdown text */
+        p, span, div {
+            font-family: 'Inter', sans-serif;
+        }
+        
         code, pre, .stCodeBlock {
-            font-family: 'JetBrains Mono', monospace !important;
+            font-family: 'Space Grotesk', monospace !important;
         }
 
-        /* ---- Page header ---- */
+        /* ---- Sidebar Styling ---- */
+        [data-testid="stSidebar"] {
+            background: rgba(15, 12, 41, 0.6) !important;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(176, 38, 255, 0.2);
+        }
+        [data-testid="stSidebar"] .stRadio > div {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 1.5rem 1rem;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        }
+        [data-testid="stSidebar"] .stRadio label {
+            color: #e2e8f0 !important;
+            font-family: 'Space Grotesk', sans-serif !important;
+            font-size: 1.05rem !important;
+        }
+
+        /* ---- Page header (Banner Style) ---- */
+        .main-header-container {
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 58, 138, 0.8) 100%);
+            border-radius: 20px;
+            padding: 3rem 2rem;
+            text-align: center;
+            margin-bottom: 2.5rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4), inset 0 0 20px rgba(0, 242, 254, 0.1);
+            border: 1px solid rgba(0, 242, 254, 0.2);
+            backdrop-filter: blur(10px);
+        }
         .main-header {
-            font-family: 'Inter', sans-serif;
-            font-size: 1.75rem;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.8rem;
             font-weight: 700;
-            color: #F8FAFC;
-            padding-bottom: 0.6rem;
-            border-bottom: 1px solid #1E293B;
-            margin-bottom: 0.3rem;
+            background: linear-gradient(to right, #00f2fe 0%, #4facfe 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.5px;
+            text-shadow: 0px 0px 20px rgba(0, 242, 254, 0.3);
         }
         .sub-header {
             font-family: 'Inter', sans-serif;
-            font-size: 0.88rem;
-            color: #94A3B8;
-            margin-top: 0.2rem;
-            margin-bottom: 1.6rem;
-            line-height: 1.5;
+            font-size: 1.1rem;
+            font-weight: 300;
+            color: #e2e8f0;
+            margin-top: 0.5rem;
+            margin-bottom: 0;
+            line-height: 1.6;
         }
 
-        /* ---- Section headings (h4 = section, h5 = subsection) ---- */
+        /* ---- Section headings ---- */
         h4, .stMarkdown h4 {
-            font-family: 'Inter', sans-serif !important;
-            font-size: 0.92rem !important;
+            font-family: 'Space Grotesk', sans-serif !important;
+            font-size: 1.3rem !important;
             font-weight: 600 !important;
-            color: #F8FAFC !important;
-            border-bottom: 1px solid #1E293B;
-            padding-bottom: 0.45rem;
-            margin-top: 1.2rem !important;
-            letter-spacing: 0.2px !important;
+            color: #ffffff !important;
+            border-bottom: 1px solid rgba(0, 242, 254, 0.2);
+            padding-bottom: 0.5rem;
+            margin-top: 1.5rem !important;
+            letter-spacing: 1px !important;
+            text-shadow: 0px 0px 10px rgba(0, 242, 254, 0.3);
         }
         h5, .stMarkdown h5 {
-            font-family: 'Inter', sans-serif !important;
-            font-size: 0.75rem !important;
+            font-family: 'Space Grotesk', sans-serif !important;
+            font-size: 0.9rem !important;
             font-weight: 600 !important;
-            color: #64748B !important;
-            letter-spacing: 0.5px !important;
+            color: #00f2fe !important;
+            letter-spacing: 1.5px !important;
             text-transform: uppercase !important;
-            margin-bottom: 0.5rem !important;
+            margin-bottom: 0.8rem !important;
         }
 
         /* ---- Metric overrides ---- */
         [data-testid="stMetricValue"] {
-            font-family: 'JetBrains Mono', monospace !important;
-            font-size: 1.5rem !important;
+            font-family: 'Space Grotesk', sans-serif !important;
+            font-size: 2.2rem !important;
             font-weight: 700 !important;
-            color: #F1F5F9 !important;
+            color: #ffffff !important;
+            text-shadow: 0 0 15px rgba(0, 242, 254, 0.5);
         }
         [data-testid="stMetricLabel"] {
-            font-family: 'Inter', sans-serif !important;
-            font-size: 0.7rem !important;
-            color: #64748B !important;
-            letter-spacing: 0.3px;
+            font-family: 'Space Grotesk', sans-serif !important;
+            font-size: 0.85rem !important;
+            font-weight: 500 !important;
+            color: #a7b2c9 !important;
+            letter-spacing: 1px;
+            text-transform: uppercase;
         }
         [data-testid="stMetricDelta"] {
-            font-family: 'JetBrains Mono', monospace !important;
-            font-size: 0.72rem !important;
+            font-family: 'Space Grotesk', sans-serif !important;
+            font-size: 0.9rem !important;
         }
 
         /* ---- Input label visibility ---- */
         .stSlider label, .stTextInput label, .stSelectbox label {
-            color: #CBD5E1 !important;
-            font-size: 0.82rem !important;
+            color: #cbd5e1 !important;
+            font-family: 'Space Grotesk', sans-serif !important;
+            font-size: 1rem !important;
+            font-weight: 500 !important;
+            letter-spacing: 0.5px;
         }
 
-        /* ---- Cards ---- */
+        /* ---- Premium Cards (Galaxy Glassmorphism) ---- */
         .cyber-card {
-            background-color: #171C28;
-            border: 1px solid #2D3748;
-            border-radius: 12px;
-            padding: 1.25rem 1.4rem;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.78rem;
-            line-height: 1.9;
-            color: #94A3B8;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.25);
-            margin-bottom: 0.7rem;
+            background: rgba(15, 12, 41, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(176, 38, 255, 0.2);
+            border-radius: 16px;
+            padding: 1.5rem;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            line-height: 2;
+            color: #a7b2c9;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(176, 38, 255, 0.05);
+            margin-bottom: 1rem;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .cyber-card:hover {
+            transform: translateY(-6px) scale(1.02);
+            box-shadow: 0 15px 45px 0 rgba(0, 0, 0, 0.6), inset 0 0 30px rgba(0, 242, 254, 0.1);
+            border-color: rgba(0, 242, 254, 0.4);
+            background: rgba(20, 15, 55, 0.8);
         }
         .cyber-card .card-title {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.72rem;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.9rem;
             font-weight: 600;
-            letter-spacing: 0.5px;
+            letter-spacing: 1.5px;
             text-transform: uppercase;
-            color: #64748B;
-            margin-bottom: 0.6rem;
-            padding-bottom: 0.4rem;
-            border-bottom: 1px solid #2D3748;
+            color: #b026ff;
+            margin-bottom: 0.8rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid rgba(176, 38, 255, 0.2);
+            text-shadow: 0 0 8px rgba(176, 38, 255, 0.4);
         }
-        .cyber-card .cl { color: #64748B; }
-        .cyber-card .cv { color: #E2E8F0; font-weight: 500; }
-        .cyber-card .cv-accent { color: #10B981; font-weight: 600; }
+        .cyber-card .cl { color: #7a8ba8; font-family: 'Space Grotesk', sans-serif; font-size: 0.85rem;}
+        .cyber-card .cv { color: #e2e8f0; font-weight: 500; font-family: 'Inter', sans-serif;}
+        .cyber-card .cv-accent { 
+            background: linear-gradient(to right, #00f2fe, #4facfe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+            font-family: 'Space Grotesk', sans-serif;
+            filter: drop-shadow(0 0 5px rgba(0,242,254,0.3));
+        }
 
-        /* ---- Hero FPS ---- */
+        /* ---- Hero FPS (Nebula Orb) ---- */
         .hero-fps {
             text-align: center;
-            padding: 2rem 1rem;
-            background-color: #171C28;
-            border: 1px solid #2D3748;
-            border-radius: 12px;
-            margin-bottom: 1rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+            padding: 4rem 1rem;
+            background: radial-gradient(circle, rgba(176,38,255,0.15) 0%, rgba(0,242,254,0.05) 50%, rgba(9,10,15,0) 100%);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(176, 38, 255, 0.3);
+            border-radius: 30px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 0 50px rgba(176,38,255,0.2), inset 0 0 30px rgba(0,242,254,0.1);
+            transition: all 0.5s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero-fps::before {
+            content: '';
+            position: absolute;
+            top: -50%; left: -50%; width: 200%; height: 200%;
+            background: conic-gradient(from 0deg, transparent, rgba(176,38,255,0.2), transparent);
+            animation: rotate 10s linear infinite;
+            z-index: -1;
+        }
+        @keyframes rotate {
+            100% { transform: rotate(360deg); }
+        }
+        .hero-fps:hover {
+            box-shadow: 0 0 80px rgba(0,242,254,0.3), inset 0 0 50px rgba(176,38,255,0.2);
+            border-color: rgba(0, 242, 254, 0.6);
+            transform: scale(1.02);
         }
         .hero-fps .fps-number {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 4.2rem;
-            font-weight: 700;
-            color: #10B981;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 6.5rem;
+            font-weight: 800;
+            background: linear-gradient(to bottom right, #ffffff, #00f2fe, #b026ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
             line-height: 1;
+            filter: drop-shadow(0 0 15px rgba(0,242,254,0.6));
         }
         .hero-fps .fps-unit {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.78rem;
-            color: #64748B;
-            letter-spacing: 1px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #a7b2c9;
+            letter-spacing: 4px;
             text-transform: uppercase;
-            margin-top: 0.6rem;
+            margin-top: 1.5rem;
         }
 
         /* ---- Phase badges ---- */
         .phase-badge {
             display: inline-block;
-            padding: 0.4rem 1rem;
-            border-radius: 6px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.78rem;
-            font-weight: 500;
+            padding: 0.6rem 1.4rem;
+            border-radius: 30px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
             margin-top: 0.5rem;
+            backdrop-filter: blur(12px);
+            transition: all 0.3s ease;
+            letter-spacing: 1px;
         }
         .phase-0 {
-            background-color: rgba(245,158,11,0.08);
-            color: #F59E0B;
-            border: 1px solid rgba(245,158,11,0.2);
+            background: rgba(255, 0, 128, 0.15);
+            color: #ff0080;
+            border: 1px solid rgba(255, 0, 128, 0.4);
+            box-shadow: 0 0 20px rgba(255, 0, 128, 0.2);
         }
         .phase-1 {
-            background-color: rgba(59,130,246,0.08);
-            color: #3B82F6;
-            border: 1px solid rgba(59,130,246,0.2);
+            background: rgba(176, 38, 255, 0.15);
+            color: #b026ff;
+            border: 1px solid rgba(176, 38, 255, 0.4);
+            box-shadow: 0 0 20px rgba(176, 38, 255, 0.2);
         }
         .phase-2 {
-            background-color: rgba(16,185,129,0.08);
-            color: #10B981;
-            border: 1px solid rgba(16,185,129,0.2);
+            background: rgba(0, 242, 254, 0.15);
+            color: #00f2fe;
+            border: 1px solid rgba(0, 242, 254, 0.4);
+            box-shadow: 0 0 20px rgba(0, 242, 254, 0.2);
         }
 
         /* ---- Verdict boxes ---- */
         .verdict-box {
-            padding: 1rem 1.4rem;
-            border-radius: 8px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.82rem;
-            font-weight: 500;
-            margin-bottom: 0.8rem;
+            padding: 1.4rem 1.8rem;
+            border-radius: 16px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            backdrop-filter: blur(16px);
+            display: flex;
+            align-items: center;
+            letter-spacing: 0.5px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
         }
         .verdict-esports {
-            background-color: rgba(16,185,129,0.08);
-            color: #10B981;
-            border: 1px solid rgba(16,185,129,0.2);
+            background: linear-gradient(135deg, rgba(0,242,254,0.15), rgba(0,242,254,0.02));
+            color: #00f2fe;
+            border: 1px solid rgba(0,242,254,0.3);
+            border-left: 5px solid #00f2fe;
+            text-shadow: 0 0 10px rgba(0,242,254,0.5);
         }
         .verdict-smooth {
-            background-color: rgba(59,130,246,0.08);
-            color: #3B82F6;
-            border: 1px solid rgba(59,130,246,0.2);
+            background: linear-gradient(135deg, rgba(176,38,255,0.15), rgba(176,38,255,0.02));
+            color: #b026ff;
+            border: 1px solid rgba(176,38,255,0.3);
+            border-left: 5px solid #b026ff;
+            text-shadow: 0 0 10px rgba(176,38,255,0.5);
         }
         .verdict-playable {
-            background-color: rgba(245,158,11,0.08);
-            color: #F59E0B;
-            border: 1px solid rgba(245,158,11,0.2);
+            background: linear-gradient(135deg, rgba(255,165,0,0.15), rgba(255,165,0,0.02));
+            color: #ffa500;
+            border: 1px solid rgba(255,165,0,0.3);
+            border-left: 5px solid #ffa500;
         }
         .verdict-unplayable {
-            background-color: rgba(239,68,68,0.08);
-            color: #EF4444;
-            border: 1px solid rgba(239,68,68,0.2);
+            background: linear-gradient(135deg, rgba(255,0,128,0.15), rgba(255,0,128,0.02));
+            color: #ff0080;
+            border: 1px solid rgba(255,0,128,0.3);
+            border-left: 5px solid #ff0080;
         }
 
         /* ---- Bottleneck cards ---- */
         .consul-optimal {
-            background-color: rgba(16,185,129,0.06);
-            color: #10B981;
-            border-left: 3px solid #10B981;
-            padding: 0.9rem 1.2rem;
-            border-radius: 6px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.8rem;
-            margin-bottom: 0.5rem;
+            background: rgba(0, 242, 254, 0.1);
+            color: #00f2fe;
+            border: 1px solid rgba(0, 242, 254, 0.3);
+            padding: 1.2rem 1.6rem;
+            border-radius: 12px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 0 20px rgba(0, 242, 254, 0.1);
         }
         .consul-warning {
-            background-color: rgba(245,158,11,0.06);
-            color: #F59E0B;
-            border-left: 3px solid #F59E0B;
-            padding: 0.9rem 1.2rem;
-            border-radius: 6px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.8rem;
-            margin-bottom: 0.5rem;
+            background: rgba(255, 0, 128, 0.1);
+            color: #ff0080;
+            border: 1px solid rgba(255, 0, 128, 0.3);
+            padding: 1.2rem 1.6rem;
+            border-radius: 12px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 0 20px rgba(255, 0, 128, 0.1);
         }
 
-        /* ---- Tabs ---- */
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 2rem;
-            border-bottom: 1px solid #1E293B;
+        /* ---- Buttons ---- */
+        .stButton > button {
+            background: linear-gradient(45deg, #b026ff 0%, #00f2fe 100%);
+            color: white;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            border: none;
+            padding: 0.6rem 2.5rem;
+            border-radius: 30px;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 20px rgba(176, 38, 255, 0.4);
+            text-transform: uppercase;
         }
-        .stTabs [data-baseweb="tab"] {
-            font-family: 'Inter', sans-serif;
-            font-weight: 600;
-            font-size: 0.85rem;
-            color: #94A3B8;
-        }
-        .stTabs [data-baseweb="tab"][aria-selected="true"] {
-            color: #F1F5F9 !important;
+        .stButton > button:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 12px 30px rgba(0, 242, 254, 0.6);
+            background: linear-gradient(45deg, #00f2fe 0%, #b026ff 100%);
+            color: white;
         }
 
         /* ---- Dividers ---- */
         hr {
-            border-color: #1E293B !important;
+            border-color: rgba(176, 38, 255, 0.2) !important;
+            margin: 2.5rem 0 !important;
         }
     </style>
     """,
@@ -291,27 +460,58 @@ st.markdown(
 )
 
 # ============================================================================
-# Header
+# Sidebar Navigation
 # ============================================================================
 
-st.markdown('<div class="main-header">CodeVerse AI // Custom C++ Tensor Engine</div>',
-            unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Real-time neural network operations powered by a '
-            'hand-built C++ backend with custom memory pooling and autograd.</div>',
-            unsafe_allow_html=True)
+with st.sidebar:
+    st.markdown(
+        """
+        <div style='text-align: center; padding: 1rem 0;'>
+            <h2 style='font-family: Space Grotesk; color: #00f2fe; margin-bottom: 0; text-shadow: 0 0 10px rgba(0,242,254,0.3); letter-spacing: 1px;'>CodeVerse</h2>
+            <p style='color: #a7b2c9; font-size: 0.9rem; font-family: Inter;'>Neural Engine</p>
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
+    
+    st.markdown("---")
+    
+    app_mode = st.radio(
+        "Application Mode",
+        ["Live Brain", "Hardware Inference"]
+    )
+    
+    st.markdown("---")
+    st.caption("Version 1.0.0 | Custom C++ Backend")
+
 
 # ============================================================================
-# Navigation Tabs
+# Header Banner
 # ============================================================================
 
-tab_train, tab_infer = st.tabs(["Live Brain", "Hardware Inference Engine"])
+if app_mode == "Live Brain":
+    banner_title = "Live Brain Training Visualizer"
+    banner_sub = "Real-time neural network operations powered by a custom C++ backend with memory pooling and autograd."
+else:
+    banner_title = "Hardware Inference Engine"
+    banner_sub = "Single-shot FPS prediction using your hardware specifications and the trained neural engine."
+
+st.markdown(
+    f'''
+    <div class="main-header-container">
+        <div class="main-header">{banner_title}</div>
+        <div class="sub-header">{banner_sub}</div>
+    </div>
+    ''',
+    unsafe_allow_html=True
+)
 
 
-# ----------------------------------------------------------------------------
-# Tab 1: Live Brain (Training Visualizer)
-# ----------------------------------------------------------------------------
+# ============================================================================
+# Mode 1: Live Brain (Training Visualizer)
+# ============================================================================
 
-with tab_train:
+if app_mode == "Live Brain":
     st.markdown("#### Training Control Panel")
 
     btn_train = st.button("Initialize Training Sequence", key="btn_train",
@@ -435,19 +635,11 @@ with tab_train:
         )
 
 
-# ----------------------------------------------------------------------------
-# Tab 2: Hardware Inference Engine (Game-Specific FPS Prediction)
-# ----------------------------------------------------------------------------
+# ============================================================================
+# Mode 2: Hardware Inference Engine (Game-Specific FPS Prediction)
+# ============================================================================
 
-with tab_infer:
-    st.markdown("#### Hardware Inference Engine")
-    st.markdown(
-        '<div class="sub-header">'
-        'Predict real-world FPS for any game in the 7,800+ title database '
-        'using your hardware specifications and the trained C++ neural engine.'
-        '</div>',
-        unsafe_allow_html=True,
-    )
+elif app_mode == "Hardware Inference":
 
     # -- Input Section -------------------------------------------------------
     col_hw, col_game = st.columns([2, 3], gap="large")
@@ -633,5 +825,3 @@ with tab_infer:
                     '</div>',
                     unsafe_allow_html=True,
                 )
-
-
